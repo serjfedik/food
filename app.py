@@ -27,6 +27,7 @@ from src.pantry import Pantry, PantryItem, parse_user_input
 from src.recipe_matcher import suggest as suggest_recipes
 from src.recipe_parser import Recipe, parse_recipe
 from src.search import search as search_recipes
+from src.theme import hair, inject_theme, page_header, section_h
 
 
 st.set_page_config(
@@ -35,6 +36,7 @@ st.set_page_config(
     layout="wide",
     initial_sidebar_state="expanded",
 )
+inject_theme()
 
 
 # ---------------------------------------------------------------------------
@@ -186,17 +188,23 @@ def _save_pantry() -> None:
 
 def _sidebar() -> None:
     with st.sidebar:
-        st.markdown("## 🍲 Recipe Vault")
-        st.caption("Облачная книга рецептов")
-        st.divider()
+        st.markdown(
+            '<div class="rv-eyebrow">Recipe Vault</div>'
+            '<div style="font-family:var(--rv-serif);font-size:1.7rem;'
+            'line-height:1.05;color:var(--rv-ink);margin-bottom:.2rem;">'
+            'Облачная<br><em style="color:var(--rv-accent);font-style:italic;'
+            'font-weight:500;">книга рецептов</em></div>',
+            unsafe_allow_html=True,
+        )
+        st.markdown('<div class="rv-hair"></div>', unsafe_allow_html=True)
 
         nav_options = {
-            "home": "🏠 Главная",
-            "editor": "✏️ Редактор",
-            "library": "📚 Библиотека",
-            "pantry": "🧊 Холодильник",
-            "diary": "📅 Дневник",
-            "about": "ℹ️ О разработке",
+            "home": "Главная",
+            "editor": "Редактор",
+            "library": "Библиотека",
+            "pantry": "Холодильник",
+            "diary": "Дневник",
+            "about": "О разработке",
         }
         for key, label in nav_options.items():
             if st.button(label, use_container_width=True,
@@ -205,8 +213,9 @@ def _sidebar() -> None:
                 st.session_state.page = key
                 st.rerun()
 
-        st.divider()
-        st.markdown("### Google Drive")
+        st.markdown('<div class="rv-hair"></div>', unsafe_allow_html=True)
+        st.markdown('<div class="rv-h-eyebrow">Google Drive</div>',
+                    unsafe_allow_html=True)
         client = _get_drive_client()
         if client is None:
             st.warning(
@@ -237,15 +246,20 @@ def _sidebar() -> None:
 # ---------------------------------------------------------------------------
 
 def render_home() -> None:
-    st.title("🍲 Recipe Vault")
-    st.caption("Загружайте, адаптируйте, считайте КБЖУ и ведите дневник питания.")
+    page_header(
+        eyebrow="Recipe Vault",
+        title='Облачная <em>книга рецептов</em>',
+        lead="Оцифруйте бумажные листочки, считайте КБЖУ, готовьте из того, "
+             "что есть в холодильнике, и ведите дневник питания — в одной "
+             "тихой белой папке Google Drive.",
+    )
 
     client = _get_drive_client()
     library = _cached_library(client.folder_id if client else "")
     recipes = _recipes_from_library(library)
 
-    # Поиск
-    st.markdown("### 🔎 Поиск")
+    # ── Поиск ────────────────────────────────────────────────────────────────
+    section_h("01", "Поиск")
     cols = st.columns([5, 1])
     with cols[0]:
         query = st.text_input(
@@ -255,41 +269,49 @@ def render_home() -> None:
             label_visibility="collapsed",
         )
     with cols[1]:
-        only_fav = st.checkbox("⭐ Избранное", value=st.session_state.favorites_only)
+        only_fav = st.checkbox("Только избранное", value=st.session_state.favorites_only)
 
     st.session_state.search_query = query
     st.session_state.favorites_only = only_fav
 
     if query.strip() or only_fav:
         hits = search_recipes(recipes, query, only_favorites=only_fav)
-        st.markdown(f"**Найдено: {len(hits)}**")
+        st.markdown(
+            f'<div class="rv-caption">Найдено: {len(hits)}</div>',
+            unsafe_allow_html=True,
+        )
         _render_recipes_grid([h.recipe for h in hits], context="home-search")
         if not hits:
             st.info("Ничего не нашли. Попробуйте другое слово или загрузите рецепт в редакторе.")
         return
 
-    # Категории-плитки
-    st.markdown("### 🗂 Категории")
+    # ── Категории ────────────────────────────────────────────────────────────
+    hair()
+    section_h("02", "Категории")
     counts = Counter(r.get("category", "") for r in recipes)
     grid_cols = st.columns(4)
     for i, cat in enumerate(cats.load_categories()):
         col = grid_cols[i % 4]
+        count = counts.get(cat.key, 0)
         with col:
-            count = counts.get(cat.key, 0)
-            with st.container(border=True):
-                st.markdown(
-                    f"<div style='font-size:2.2rem;line-height:1'>{cat.emoji}</div>"
-                    f"<div style='font-size:1.05rem;font-weight:600;margin-top:.2rem'>{cat.label}</div>"
-                    f"<div style='color:#888;font-size:.85rem'>{count} рецеп.</div>",
-                    unsafe_allow_html=True,
-                )
-                if st.button("Открыть", key=f"cat_{cat.key}", use_container_width=True):
-                    st.session_state.selected_category = cat.key
-                    st.session_state.page = "library"
-                    st.rerun()
+            st.markdown(
+                '<div class="rv-tile">'
+                f'<div>'
+                f'  <div class="rv-tile-eyebrow">{cat.emoji} &nbsp; {count:02d}</div>'
+                f'  <div class="rv-tile-title">{cat.label}</div>'
+                f'</div>'
+                f'<div class="rv-tile-meta">{count} рецепт{"а" if 1 < count < 5 else "ов" if count != 1 else ""}</div>'
+                '</div>',
+                unsafe_allow_html=True,
+            )
+            if st.button("Открыть →", key=f"cat_{cat.key}", use_container_width=True):
+                st.session_state.selected_category = cat.key
+                st.session_state.page = "library"
+                st.rerun()
 
-    st.divider()
-    st.markdown("### 🆕 Последние добавленные")
+    # ── Последние ────────────────────────────────────────────────────────────
+    hair()
+    section_h("03", "Последние добавленные")
     recent = sorted(recipes, key=lambda r: r.get("_modified", ""), reverse=True)[:6]
     if recent:
         _render_recipes_grid(recent, context="home-recent")
@@ -303,20 +325,35 @@ def _render_recipes_grid(recipes: list[dict[str, Any]], context: str) -> None:
     cols = st.columns(3)
     for i, r in enumerate(recipes):
         with cols[i % 3]:
-            with st.container(border=True):
-                title = r.get("title") or "Без названия"
-                cat = cats.label_of(r.get("category", ""))
-                star = "⭐ " if r.get("favorite") else ""
-                st.markdown(f"**{star}{title}**")
-                st.caption(f"{cat} · {r.get('time') or '—'} · порций: {r.get('servings') or '—'}")
-                tags = r.get("tags") or []
-                if tags:
-                    st.caption("🏷 " + ", ".join(tags[:5]))
-                if st.button("Открыть", key=f"{context}_{r.get('_file_id', i)}",
-                             use_container_width=True):
-                    st.session_state.selected_recipe_id = r.get("_file_id", "")
-                    st.session_state.page = "library"
-                    st.rerun()
+            title = (r.get("title") or "Без названия").replace("<", "&lt;")
+            cat_label = cats.label_of(r.get("category", ""))
+            star = '<span style="color:var(--rv-accent);">✦</span> ' if r.get("favorite") else ""
+            tags = r.get("tags") or []
+            pills = "".join(
+                f'<span class="rv-pill">{t}</span>' for t in tags[:3]
+            )
+            meta_bits = []
+            if r.get("time"):
+                meta_bits.append(r["time"])
+            if r.get("servings"):
+                meta_bits.append(f"{r['servings']} порц.")
+            meta = " · ".join(meta_bits) or "—"
+            st.markdown(
+                '<div class="rv-tile" style="min-height:180px;">'
+                f'<div>'
+                f'  <div class="rv-tile-eyebrow">{cat_label}</div>'
+                f'  <div class="rv-tile-title">{star}{title}</div>'
+                f'  <div class="rv-tile-meta">{meta}</div>'
+                f'</div>'
+                f'<div>{pills}</div>'
+                '</div>',
+                unsafe_allow_html=True,
+            )
+            if st.button("Открыть →", key=f"{context}_{r.get('_file_id', i)}",
+                         use_container_width=True):
+                st.session_state.selected_recipe_id = r.get("_file_id", "")
+                st.session_state.page = "library"
+                st.rerun()
 
 
 # ---------------------------------------------------------------------------
@@ -324,13 +361,26 @@ def _render_recipes_grid(recipes: list[dict[str, Any]], context: str) -> None:
 # ---------------------------------------------------------------------------
 
 def render_editor() -> None:
-    st.title("✏️ Редактор рецепта")
+    page_header(
+        eyebrow="Редактор",
+        title='Новый <em>рецепт</em>',
+        lead="Три шага: загрузить файл, поправить распознанный текст и структуру, "
+             "сохранить в свою папку Google Drive.",
+    )
     stage = st.session_state.editor_stage
-    tabs_label = {"upload": "1. Загрузка", "adapt": "2. Адаптация", "save": "3. Сохранение"}
-    st.markdown(" → ".join(
-        f"**{v}**" if k == stage else v for k, v in tabs_label.items()
-    ))
-    st.divider()
+    steps = [("upload", "Загрузка"), ("adapt", "Адаптация"), ("save", "Сохранение")]
+    chips = []
+    for key, label in steps:
+        active = key == stage
+        chips.append(
+            f'<span class="rv-pill {"accent" if active else ""}" '
+            f'style="font-size:.72rem;{"font-weight:600;" if active else ""}">'
+            f'{label}</span>'
+        )
+    st.markdown(
+        f'<div style="margin-bottom:1.2rem;">{" → ".join(chips)}</div>',
+        unsafe_allow_html=True,
+    )
 
     if stage == "upload":
         _render_upload()
@@ -552,7 +602,12 @@ def _render_save() -> None:
 # ---------------------------------------------------------------------------
 
 def render_library() -> None:
-    st.title("📚 Библиотека рецептов")
+    page_header(
+        eyebrow="Библиотека",
+        title='Все ваши <em>рецепты</em>',
+        lead="Фильтруйте по категории, тегам и избранному. Откройте карточку — "
+             "увидите расчёт КБЖУ и сможете отправить блюдо в дневник.",
+    )
     client = _get_drive_client()
     library = _cached_library(client.folder_id if client else "")
     recipes = _recipes_from_library(library)
@@ -810,7 +865,12 @@ def _render_log_form(r: dict[str, Any]) -> None:
 # ---------------------------------------------------------------------------
 
 def render_diary() -> None:
-    st.title("📅 Дневник питания")
+    page_header(
+        eyebrow="Дневник",
+        title='Что вы хотите <em>сегодня?</em>',
+        lead="Выберите дату, добавьте блюдо из библиотеки с количеством порций — "
+             "увидите дневной свод по калориям и БЖУ, а также таблицу за неделю.",
+    )
     log, client = _ensure_meal_log()
 
     if client is None:
@@ -900,10 +960,12 @@ def render_diary() -> None:
 # ---------------------------------------------------------------------------
 
 def render_pantry() -> None:
-    st.title("🧊 Холодильник")
-    st.caption(
-        "Что есть дома → что можно приготовить. Без LLM: матчинг по локальной БД "
-        "продуктов. Поддерживает ручной список, OCR фото-списка и фото электронных весов."
+    page_header(
+        eyebrow="Холодильник",
+        title='Что есть — <em>что приготовить</em>',
+        lead="Введите продукты с весами, OCR-нте список или прочитайте фото весов. "
+             "Нажмите «Сгенерировать» — получите подбор рецептов с разбивкой "
+             "что есть и что докупить.",
     )
     pantry, client = _ensure_pantry()
     if client is None:
