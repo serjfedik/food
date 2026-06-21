@@ -21,6 +21,7 @@ from src import categories as cats
 from src.about_ui import render_about
 from src.file_loader import LoadResult, SUPPORTED_EXTS, load_file
 from src.google_drive import DriveClient, DriveError
+from src.google_sheets import SheetsClient, SheetsError
 from src.meal_log import MEAL_TYPES, MealEntry, MealLog
 from src.nutrition import (Nutrition, calc_recipe, load_products, parse_servings)
 from src.pantry import Pantry, PantryItem, parse_user_input
@@ -93,6 +94,62 @@ def _get_drive_client() -> Optional[DriveClient]:
         return None
 
 
+@st.cache_resource(show_spinner=False)
+def _get_sheets_client() -> Optional[SheetsClient]:
+    """Опциональный клиент. Если spreadsheet_id не задан — возвращаем None,
+    приложение продолжает работать без Sheets-синка."""
+    if "gcp_service_account" not in st.secrets:
+        return None
+    spreadsheet_id = ""
+    if "google_sheets" in st.secrets:
+        spreadsheet_id = st.secrets["google_sheets"].get("spreadsheet_id", "")
+    if not spreadsheet_id:
+        return None
+    sa = dict(st.secrets["gcp_service_account"])
+    try:
+        return SheetsClient(sa, spreadsheet_id=spreadsheet_id)
+    except SheetsError as exc:
+        st.sidebar.warning(f"Google Sheets: {exc}")
+        return None
+
+
+def _sync_recipe_to_sheets(recipe_dict: dict[str, Any], file_id: str,
+                           drive_link: str) -> None:
+    sheets = _get_sheets_client()
+    if sheets is None:
+        return
+    try:
+        sheets.upsert_recipe(recipe_dict, file_id=file_id, drive_link=drive_link)
+    except SheetsError as exc:
+        st.warning(f"Sheets sync (рецепт): {exc}")
+
+
+def _sync_diary_to_sheets() -> None:
+    sheets = _get_sheets_client()
+    if sheets is None:
+        return
+    log = st.session_state.meal_log
+    if log is None:
+        return
+    try:
+        sheets.replace_diary(e.to_dict() for e in log.entries)
+    except SheetsError as exc:
+        st.warning(f"Sheets sync (дневник): {exc}")
+
+
+def _sync_pantry_to_sheets() -> None:
+    sheets = _get_sheets_client()
+    if sheets is None:
+        return
+    pantry = st.session_state.pantry
+    if pantry is None:
+        return
+    try:
+        sheets.replace_pantry(it.to_dict() for it in pantry.items)
+    except SheetsError as exc:
+        st.warning(f"Sheets sync (холодильник): {exc}")
+
+
 @st.cache_data(show_spinner=False, ttl=120)
 def _cached_library(_client_token: str) -> list[dict[str, Any]]:
     client = _get_drive_client()
@@ -152,6 +209,8 @@ def _save_meal_log() -> None:
         st.session_state.meal_log_file_id = uploaded.file_id
     except DriveError as exc:
         st.error(f"Не удалось сохранить дневник: {exc}")
+        return
+    _sync_diary_to_sheets()
 
 
 def _ensure_pantry() -> tuple[Pantry, DriveClient | None]:
@@ -180,6 +239,8 @@ def _save_pantry() -> None:
         st.session_state.pantry_file_id = uploaded.file_id
     except DriveError as exc:
         st.error(f"Не удалось сохранить холодильник: {exc}")
+        return
+    _sync_pantry_to_sheets()
 
 
 # ---------------------------------------------------------------------------
@@ -233,8 +294,13 @@ def _sidebar() -> None:
                     "   - `[google_drive] folder_id = \"...\"`."
                 )
         else:
-            st.success(f"📂 {client.folder_id[:20]}…")
-            if st.button("🔄 Обновить кэш", use_container_width=True):
+            st.success(f"папка: {client.folder_id[:18]}…")
+            sheets = _get_sheets_client()
+            if sheets is not None:
+                st.caption(f"✓ Sheets синк: [таблица]({sheets.url})")
+            else:
+                st.caption("⚪ Sheets синк не настроен (опционально).")
+            if st.button("обновить кэш", use_container_width=True):
                 _invalidate_library()
                 st.session_state.meal_log = None
                 st.session_state.pantry = None
@@ -600,6 +666,20 @@ def _render_save() -> None:
             st.session_state.saved_links.append(
                 {"name": f.name, "link": f.web_link, "mime": f.mime_type}
             )
+        # Параллельно — строкой в мастер-таблицу (если подключена)
+        json_file = next(
+            (f for f in results if f.mime_type == "application/json"),
+            results[0] if results else None,
+        )
+        if json_file is not None:
+            _sync_recipe_to_sheets(
+                recipe.to_dict(),
+                file_id=json_file.file_id,
+                drive_link=json_file.web_link,
+            )
+            sheets = _get_sheets_client()
+            if sheets is not None:
+                st.markdown(f"• [строка добавлена в мастер-таблицу]({sheets.url})")
         _invalidate_library()
 
 
