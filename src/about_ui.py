@@ -133,14 +133,13 @@ def _render_dev_stats() -> None:
     s = data.dev_stats()
     cards = [
         _stat_card("Версия", s["version"], f"sha {s['sha']}"),
-        _stat_card("Коммитов", str(s["commits"]), "в ветке"),
-        _stat_card("Рабочих дней", str(s["days"]), "уникальных дат коммитов"),
-        _stat_card("Обновлено", s["last"], "последний коммит"),
+        _stat_card("Обновлено", s["last_date"], "последний коммит"),
+        _stat_card("Дата отсчёта", s["first_date"], "первый коммит проекта"),
     ]
-    _grid(cards, cols=4)
+    _grid(cards, cols=3)
     st.caption(
-        "Данные из локального git. На Streamlit Cloud — из снапшота развёрнутого "
-        "коммита (одно число дней = «деплой случился сегодня»)."
+        "Данные читаются из git репозитория. На Streamlit Cloud — "
+        "из снапшота развёрнутого коммита."
     )
 
 

@@ -978,11 +978,12 @@ def render_pantry() -> None:
         st.warning("Drive не подключён — холодильник работает только в этой сессии.")
 
     tabs = st.tabs([
-        "✍ Текстовый ввод",
-        "📷 Фото-список (OCR)",
-        "⚖️ Фото весов (OCR)",
-        "🥦 Что есть",
-        "💡 Что приготовить",
+        "текст",
+        "фото-список (ocr)",
+        "фото холодильника (ai)",
+        "фото весов (ocr)",
+        "что есть",
+        "что приготовить",
     ])
 
     # --- 1. Текстовый ввод ---------------------------------------------------
@@ -1040,8 +1041,12 @@ def render_pantry() -> None:
             except Exception as exc:  # pragma: no cover
                 st.error(f"OCR не удался: {exc}")
 
-    # --- 3. Фото весов -------------------------------------------------------
+    # --- 3. Фото холодильника (Vision / AI) ----------------------------------
     with tabs[2]:
+        _render_vision_pantry_tab(pantry)
+
+    # --- 4. Фото весов -------------------------------------------------------
+    with tabs[3]:
         st.markdown(
             "Фото электронных весов с продуктом. OCR извлечёт число и единицу — "
             "вы укажете название продукта и нажмёте «Добавить»."
@@ -1084,8 +1089,8 @@ def render_pantry() -> None:
                            f"Сопоставлено с «{canonical or '— не найдено в БД —'}».")
                 st.rerun()
 
-    # --- 4. Что есть ---------------------------------------------------------
-    with tabs[3]:
+    # --- 5. Что есть ---------------------------------------------------------
+    with tabs[4]:
         if not pantry.items:
             st.info("Холодильник пуст. Добавьте продукты на других вкладках.")
         else:
@@ -1121,8 +1126,8 @@ def render_pantry() -> None:
                 _save_pantry()
                 st.rerun()
 
-    # --- 5. Что приготовить --------------------------------------------------
-    with tabs[4]:
+    # --- 6. Что приготовить --------------------------------------------------
+    with tabs[5]:
         st.markdown("**Сгенерировать рецепты** из того, что лежит в холодильнике.")
         cols = st.columns([1, 1, 1])
         include_starter = cols[0].checkbox(
@@ -1157,6 +1162,143 @@ def render_pantry() -> None:
         else:
             for m in suggestions:
                 _render_match_card(m)
+
+
+def _render_vision_pantry_tab(pantry: Pantry) -> None:
+    """Vкладка «фото холодильника (ai)» — распознавание продуктов через Claude Vision."""
+    from src.vision import (DEFAULT_MODEL, VisionUnavailable,
+                            describe_fridge_photo, has_api_key)
+
+    st.markdown(
+        "Загрузите фото холодильника или продуктов на столе. "
+        "Claude Vision определит продукты и оценит вес каждого. "
+        "Никаких «йогурт в борщ» — модель различает сладкие/несладкие категории."
+    )
+
+    if not has_api_key():
+        st.info(
+            "🔑 Нужен Anthropic API-ключ. Что сделать:\n\n"
+            "1. Завести аккаунт на https://console.anthropic.com\n"
+            "2. Выпустить API-ключ (раздел **API Keys**).\n"
+            "3. В Streamlit Cloud → Settings → Secrets добавить строку:\n"
+            "   ```\n"
+            '   ANTHROPIC_API_KEY = "sk-ant-..."\n'
+            "   ```\n"
+            "4. Сохранить → приложение перезапустится автоматически.\n\n"
+            "Стоимость распознавания фото — около **$0.005** (Haiku 4.5)."
+        )
+
+    photo = st.file_uploader(
+        "Фото холодильника / продуктов",
+        type=["png", "jpg", "jpeg", "webp"],
+        key="pantry_vision_photo",
+    )
+    cols = st.columns([2, 1, 1])
+    model = cols[0].selectbox(
+        "Модель",
+        options=[
+            "claude-haiku-4-5-20251001",
+            "claude-sonnet-4-6",
+            "claude-opus-4-8",
+        ],
+        index=0,
+        help="Haiku — быстро и дёшево, Sonnet — баланс, Opus — максимум качества.",
+    )
+    do_recognize = cols[1].button("распознать", type="primary",
+                                  disabled=(photo is None))
+
+    if photo and do_recognize:
+        try:
+            data = photo.read()
+            mime = photo.type or "image/jpeg"
+            with st.spinner("Claude разбирает фото…"):
+                guesses = describe_fridge_photo(data, mime_type=mime, model=model)
+        except VisionUnavailable as exc:
+            st.error(f"Vision: {exc}")
+            return
+
+        if not guesses:
+            st.warning("Модель не нашла продуктов на фото.")
+            return
+
+        st.session_state["vision_guesses"] = [
+            {
+                "name": g.name,
+                "qty": g.qty,
+                "grams": g.grams or 0.0,
+                "confidence": g.confidence,
+                "note": g.note,
+                "include": True,
+            }
+            for g in guesses
+        ]
+        st.success(f"Распознано продуктов: {len(guesses)}. "
+                   "Проверьте список, поправьте веса и нажмите «добавить выбранные».")
+
+    guesses = st.session_state.get("vision_guesses")
+    if not guesses:
+        return
+
+    st.markdown("**распознанные продукты**")
+    for i, g in enumerate(guesses):
+        with st.container(border=True):
+            row = st.columns([1, 3, 1, 1, 1])
+            g["include"] = row[0].checkbox(
+                "включить", value=g["include"],
+                key=f"vg_inc_{i}", label_visibility="collapsed",
+            )
+            g["name"] = row[1].text_input(
+                "название", value=g["name"], key=f"vg_name_{i}",
+                label_visibility="collapsed",
+            )
+            g["qty"] = row[2].number_input(
+                "шт.", value=float(g["qty"] or 0.0),
+                min_value=0.0, max_value=100.0, step=1.0,
+                key=f"vg_qty_{i}", label_visibility="collapsed",
+            )
+            g["grams"] = row[3].number_input(
+                "граммы", value=float(g["grams"]),
+                min_value=0.0, max_value=50000.0, step=10.0,
+                key=f"vg_g_{i}", label_visibility="collapsed",
+            )
+            conf_color = {"high": "olive", "medium": "", "low": "ochre"}
+            row[4].markdown(
+                f'<span class="rv-pill {conf_color.get(g["confidence"], "")}">'
+                f'{g["confidence"]}</span>',
+                unsafe_allow_html=True,
+            )
+            if g["note"]:
+                st.caption(f"📝 {g['note']}")
+
+    btn_cols = st.columns([1, 1, 3])
+    if btn_cols[0].button("добавить выбранные", type="primary",
+                          key="vg_add"):
+        from src.nutrition import find_product
+        added = 0
+        for g in guesses:
+            if not g["include"]:
+                continue
+            if g["grams"] <= 0:
+                continue
+            match = find_product(g["name"])
+            canonical = match[0].name if match else ""
+            qty_disp = f' ({int(g["qty"])} шт)' if g["qty"] else ""
+            pantry.add(PantryItem(
+                id="",
+                raw=f'{g["name"]}{qty_disp} — {g["grams"]:.0f} г · vision',
+                name=g["name"],
+                product_name=canonical,
+                grams=float(g["grams"]),
+                note=g["note"],
+            ))
+            added += 1
+        _save_pantry()
+        st.session_state.pop("vision_guesses", None)
+        st.success(f"Добавлено в холодильник: {added} продуктов.")
+        st.rerun()
+    if btn_cols[1].button("сбросить", key="vg_reset"):
+        st.session_state.pop("vision_guesses", None)
+        st.rerun()
 
 
 def _render_match_card(m) -> None:

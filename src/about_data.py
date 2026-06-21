@@ -286,6 +286,17 @@ def _git(*args: str) -> str:
         return ""
 
 
+def _to_ddmmyyyy(iso_date: str) -> str:
+    """`2026-06-21` → `21.06.2026`. Пустой/битый вход → `—`."""
+    if not iso_date:
+        return "—"
+    parts = iso_date.strip().split("-")
+    if len(parts) != 3:
+        return iso_date
+    y, m, d = parts
+    return f"{d}.{m}.{y}"
+
+
 def dev_stats() -> dict[str, Any]:
     commits_str = _git("rev-list", "--count", "HEAD")
     try:
@@ -293,20 +304,23 @@ def dev_stats() -> dict[str, Any]:
     except ValueError:
         commits = 0
 
-    dates_str = _git("log", "--format=%cs", "HEAD")
-    days = len({d for d in dates_str.split() if d})
+    # дата последнего коммита (YYYY-MM-DD)
+    last_iso = _git("log", "-1", "--format=%cs")
+    last_date = _to_ddmmyyyy(last_iso)
 
-    last = _git("log", "-1", "--format=%cs %h")
-    if not last:
-        last = "—"
+    # дата самого первого коммита — «дата отсчёта»
+    first_log = _git("log", "--reverse", "--format=%cs")
+    first_iso = first_log.split("\n", 1)[0] if first_log else ""
+    first_date = _to_ddmmyyyy(first_iso)
 
     sha = _git("rev-parse", "--short=8", "HEAD") or "—"
-    version = f"v0.{commits}" if commits else "v0.0"
+    # «семантично-похожая» версия: 0.0.<commits>
+    version = f"0.0.{commits}" if commits else "0.0.0"
 
     return {
         "version": version,
-        "commits": commits,
-        "days": days,
-        "last": last,
+        "last_date": last_date,
+        "first_date": first_date,
         "sha": sha,
+        "commits": commits,
     }
