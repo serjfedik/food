@@ -35,6 +35,11 @@ class Recipe:
     steps: list[str] = field(default_factory=list)
     notes: str = ""
     raw_text: str = ""
+    category: str = ""              # ключ из data/categories.json (например, "soups")
+    tags: list[str] = field(default_factory=list)
+    favorite: bool = False
+    cuisine: str = ""               # кухня (русская, итальянская, …)
+    difficulty: str = ""            # easy | medium | hard
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)
@@ -49,6 +54,11 @@ class Recipe:
             steps=list(data.get("steps", [])),
             notes=data.get("notes", ""),
             raw_text=data.get("raw_text", ""),
+            category=data.get("category", ""),
+            tags=list(data.get("tags", [])),
+            favorite=bool(data.get("favorite", False)),
+            cuisine=data.get("cuisine", ""),
+            difficulty=data.get("difficulty", ""),
         )
 
     def to_markdown(self) -> str:
@@ -61,8 +71,15 @@ class Recipe:
             meta_bits.append(f"**Порций:** {self.servings}")
         if self.time:
             meta_bits.append(f"**Время:** {self.time}")
+        if self.cuisine:
+            meta_bits.append(f"**Кухня:** {self.cuisine}")
+        if self.difficulty:
+            meta_bits.append(f"**Сложность:** {self.difficulty}")
         if meta_bits:
             lines.append(" · ".join(meta_bits))
+            lines.append("")
+        if self.tags:
+            lines.append("Теги: " + ", ".join(f"`{t}`" for t in self.tags))
             lines.append("")
         if self.ingredients:
             lines.append("## Ингредиенты")

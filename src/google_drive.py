@@ -155,6 +155,50 @@ class DriveClient:
             convert_to_google_doc=False,
         )
 
+    def load_recipe_json(self, file_id: str) -> Optional[dict[str, Any]]:
+        """Считываем JSON-бэкап рецепта (mime application/json)."""
+        try:
+            text = self.download_text(file_id, "application/json")
+            return json.loads(text)
+        except (DriveError, json.JSONDecodeError):
+            return None
+
+    def list_recipe_jsons(self) -> list[dict[str, Any]]:
+        """Все .json-файлы в папке (наши бэкапы рецептов) c parsed payload."""
+        files = self.list_recipes(page_size=500)
+        result: list[dict[str, Any]] = []
+        for f in files:
+            if f["mimeType"] != "application/json" or f["name"] == "meal_log.json":
+                continue
+            payload = self.load_recipe_json(f["id"])
+            if not payload:
+                continue
+            result.append({
+                "file_id": f["id"],
+                "name": f["name"],
+                "modified": f.get("modifiedTime", ""),
+                "web_link": f.get("webViewLink", ""),
+                "payload": payload,
+            })
+        return result
+
+    def load_meal_log(self) -> tuple[dict[str, Any], Optional[str]]:
+        """Возвращает (payload, file_id). Если файла нет — ({}, None)."""
+        existing = self._find_by_name("meal_log.json", mime_type="application/json")
+        if not existing:
+            return {}, None
+        payload = self.load_recipe_json(existing["id"]) or {}
+        return payload, existing["id"]
+
+    def save_meal_log(self, payload: dict[str, Any]) -> UploadedFile:
+        """Перезаписывает meal_log.json целиком."""
+        return self._upload(
+            name="meal_log.json",
+            data=json.dumps(payload, ensure_ascii=False, indent=2).encode("utf-8"),
+            mime_type="application/json",
+            convert_to_google_doc=False,
+        )
+
     def download_text(self, file_id: str, mime_type: str) -> str:
         """Скачиваем содержимое файла из папки как текст (для Google Doc — экспорт в md)."""
         try:

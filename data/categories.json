@@ -1,0 +1,16 @@
+{
+  "default": [
+    {"key": "soups", "label": "Супы", "emoji": "🍲", "color": "#E07A5F"},
+    {"key": "salads", "label": "Салаты", "emoji": "🥗", "color": "#81B29A"},
+    {"key": "mains", "label": "Основные блюда", "emoji": "🍗", "color": "#3D405B"},
+    {"key": "breakfasts", "label": "Завтраки", "emoji": "🍳", "color": "#F2CC8F"},
+    {"key": "desserts", "label": "Десерты", "emoji": "🍰", "color": "#D88C9A"},
+    {"key": "baking", "label": "Выпечка", "emoji": "🥐", "color": "#C68B59"},
+    {"key": "sides", "label": "Гарниры", "emoji": "🍚", "color": "#A0A083"},
+    {"key": "sauces", "label": "Соусы", "emoji": "🥣", "color": "#B56576"},
+    {"key": "snacks", "label": "Закуски", "emoji": "🥨", "color": "#6D6875"},
+    {"key": "drinks", "label": "Напитки", "emoji": "🥤", "color": "#5390D9"},
+    {"key": "preserves", "label": "Заготовки", "emoji": "🫙", "color": "#7F5539"},
+    {"key": "other", "label": "Прочее", "emoji": "🍴", "color": "#999999"}
+  ]
+}
