@@ -463,9 +463,12 @@ def render_editor() -> None:
 
 
 def _render_upload() -> None:
+    from src import vision as vision_mod
+
     st.subheader("Загрузить файл")
     st.caption(
-        "PDF, DOCX, фото/сканы (PNG/JPG/TIFF/WebP), .txt. Для рукописных и сканов — OCR (rus+eng)."
+        "PDF, DOCX, фото/сканы (PNG/JPG/TIFF/WebP), .txt. "
+        "Для рукописных и сложных сканов рекомендуется AI-OCR (см. ниже)."
     )
 
     col1, col2 = st.columns([2, 1])
@@ -476,10 +479,55 @@ def _render_upload() -> None:
             accept_multiple_files=False,
         )
     with col2:
-        force_ocr = st.checkbox("Принудительный OCR (для PDF-сканов)", value=False)
-        langs = st.text_input("Языки OCR", value="rus+eng")
+        available = vision_mod.available_providers()
+        use_ai = st.toggle(
+            "🤖 AI-OCR",
+            value=bool(available),
+            disabled=not available,
+            help=("Распознавание через LLM-Vision вместо Tesseract. "
+                  "Сильно лучше на рукописном и стилизованных сканах."),
+        )
+        if not available:
+            st.caption("Нет ключа провайдера. См. SETUP.md шаг 5.")
+        force_ocr = st.checkbox(
+            "Принудительный OCR",
+            value=False,
+            help="Для PDF — игнорировать текстовый слой и распознавать постранично.",
+        )
 
-    if st.button("✨ Начать с пустого рецепта"):
+    ai_provider: Optional[str] = None
+    ai_model: Optional[str] = None
+    if use_ai and available:
+        cols_ai = st.columns([1, 2])
+        with cols_ai[0]:
+            ai_provider = st.selectbox(
+                "Провайдер AI",
+                options=available,
+                index=0,
+                format_func=lambda p: {
+                    "openai": "OpenAI (GPT-4o)",
+                    "gemini": "Google Gemini",
+                    "anthropic": "Anthropic Claude",
+                }.get(p, p),
+            )
+        with cols_ai[1]:
+            models = vision_mod.AVAILABLE_MODELS_OCR.get(ai_provider, [])
+            default_m = vision_mod.DEFAULT_MODELS_OCR.get(ai_provider, "")
+            try:
+                idx = models.index(default_m)
+            except ValueError:
+                idx = 0
+            ai_model = st.selectbox("Модель", options=models, index=idx)
+
+    if not use_ai:
+        langs = st.text_input(
+            "Языки Tesseract", value="rus+eng",
+            help="Коды tesseract через '+'. Только для классического OCR.",
+        )
+    else:
+        langs = "rus+eng"
+
+    if st.button("Начать с пустого рецепта"):
         st.session_state.raw_text = ""
         st.session_state.load_meta = None
         st.session_state.recipe = Recipe()
@@ -491,11 +539,17 @@ def _render_upload() -> None:
         return
 
     if st.button("Распознать и продолжить →", type="primary"):
-        with st.spinner("Читаю файл…"):
+        spinner_msg = ("AI разбирает страницы…" if (use_ai and ai_provider)
+                       else "Читаю файл…")
+        with st.spinner(spinner_msg):
             try:
                 data = uploaded.read()
-                result = load_file(uploaded.name, data, force_ocr=force_ocr,
-                                   langs=langs.strip() or None)
+                result = load_file(
+                    uploaded.name, data, force_ocr=force_ocr,
+                    langs=langs.strip() or None,
+                    ai_ocr_provider=ai_provider if use_ai else None,
+                    ai_ocr_model=ai_model if use_ai else None,
+                )
             except ValueError as exc:
                 st.error(str(exc))
                 return
@@ -1245,55 +1299,68 @@ def render_pantry() -> None:
 
 
 def _render_vision_pantry_tab(pantry: Pantry) -> None:
-    """Vкладка «фото холодильника (ai)» — распознавание продуктов через Claude Vision."""
-    from src.vision import (DEFAULT_MODEL, VisionUnavailable,
-                            describe_fridge_photo, has_api_key)
+    """Вкладка «фото холодильника (ai)» — распознавание продуктов через Vision."""
+    from src import vision as vision_mod
 
     st.markdown(
         "Загрузите фото холодильника или продуктов на столе. "
-        "Claude Vision определит продукты и оценит вес каждого. "
+        "Vision-модель определит продукты и оценит вес каждого. "
         "Никаких «йогурт в борщ» — модель различает сладкие/несладкие категории."
     )
 
-    if not has_api_key():
+    available = vision_mod.available_providers()
+    if not available:
         st.info(
-            "🔑 Нужен Anthropic API-ключ. Что сделать:\n\n"
-            "1. Завести аккаунт на https://console.anthropic.com\n"
-            "2. Выпустить API-ключ (раздел **API Keys**).\n"
-            "3. В Streamlit Cloud → Settings → Secrets добавить строку:\n"
+            "🔑 Нужен ключ одного из Vision-провайдеров. Самый простой путь — **OpenAI**:\n\n"
+            "1. Завести аккаунт на https://platform.openai.com\n"
+            "2. Перейти в **API Keys** → **Create new secret key**.\n"
+            "3. Положить $5 на счёт (одно распознавание ≈ $0.001 для mini-моделей).\n"
+            "4. В Streamlit Cloud → Settings → Secrets добавить:\n"
             "   ```\n"
-            '   ANTHROPIC_API_KEY = "sk-ant-..."\n'
-            "   ```\n"
-            "4. Сохранить → приложение перезапустится автоматически.\n\n"
-            "Стоимость распознавания фото — около **$0.005** (Haiku 4.5)."
+            '   OPENAI_API_KEY = "sk-..."\n'
+            "   ```\n\n"
+            "Альтернативы: **GEMINI_API_KEY** (бесплатно, https://aistudio.google.com) "
+            "или **ANTHROPIC_API_KEY** ($5)."
         )
+        return
 
     photo = st.file_uploader(
         "Фото холодильника / продуктов",
         type=["png", "jpg", "jpeg", "webp"],
         key="pantry_vision_photo",
     )
-    cols = st.columns([2, 1, 1])
-    model = cols[0].selectbox(
-        "Модель",
-        options=[
-            "claude-haiku-4-5-20251001",
-            "claude-sonnet-4-6",
-            "claude-opus-4-8",
-        ],
+    cols = st.columns([1, 2, 1])
+    provider = cols[0].selectbox(
+        "Провайдер",
+        options=available,
         index=0,
-        help="Haiku — быстро и дёшево, Sonnet — баланс, Opus — максимум качества.",
+        format_func=lambda p: {
+            "openai": "OpenAI",
+            "gemini": "Google Gemini",
+            "anthropic": "Anthropic",
+        }.get(p, p),
     )
-    do_recognize = cols[1].button("распознать", type="primary",
+    model_options = vision_mod.AVAILABLE_MODELS_OCR.get(provider, [])
+    default_m = vision_mod.DEFAULT_MODELS_PRODUCTS.get(provider, "")
+    if default_m not in model_options:
+        model_options = [default_m] + model_options
+    model = cols[1].selectbox(
+        "Модель", options=model_options,
+        index=model_options.index(default_m) if default_m in model_options else 0,
+        help="Mini-модели — быстро и дёшево; полные — выше точность.",
+    )
+    do_recognize = cols[2].button("распознать", type="primary",
                                   disabled=(photo is None))
 
     if photo and do_recognize:
         try:
             data = photo.read()
             mime = photo.type or "image/jpeg"
-            with st.spinner("Claude разбирает фото…"):
-                guesses = describe_fridge_photo(data, mime_type=mime, model=model)
-        except VisionUnavailable as exc:
+            with st.spinner("Vision разбирает фото…"):
+                guesses = vision_mod.describe_fridge_photo(
+                    data, mime_type=mime, provider=provider, model=model,
+                )
+        except vision_mod.VisionUnavailable as exc:
             st.error(f"Vision: {exc}")
             return
 
