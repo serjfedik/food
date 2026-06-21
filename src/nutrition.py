@@ -161,12 +161,17 @@ def _extract_unit(text: str) -> tuple[Optional[str], str]:
     return None, text.lower().strip()
 
 
+PERCENT_PATTERN = re.compile(r"\d+(?:[.,]\d+)?\s*%")
+
+
 def parse_ingredient(line: str) -> ParsedIngredient:
     raw = line.strip()
     if not raw:
         return ParsedIngredient(raw=line)
 
     cleaned, note = _strip_parens(raw)
+    # «молоко 2.5%» — процент жирности часть имени, для qty его учитывать нельзя
+    cleaned = PERCENT_PATTERN.sub(" ", cleaned)
     lower = cleaned.lower()
 
     # фразы вроде «соль по вкусу» — оставляем без количества

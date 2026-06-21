@@ -168,7 +168,9 @@ class DriveClient:
         files = self.list_recipes(page_size=500)
         result: list[dict[str, Any]] = []
         for f in files:
-            if f["mimeType"] != "application/json" or f["name"] == "meal_log.json":
+            if f["mimeType"] != "application/json":
+                continue
+            if f["name"] in ("meal_log.json", "pantry.json"):
                 continue
             payload = self.load_recipe_json(f["id"])
             if not payload:
@@ -194,6 +196,21 @@ class DriveClient:
         """Перезаписывает meal_log.json целиком."""
         return self._upload(
             name="meal_log.json",
+            data=json.dumps(payload, ensure_ascii=False, indent=2).encode("utf-8"),
+            mime_type="application/json",
+            convert_to_google_doc=False,
+        )
+
+    def load_pantry(self) -> tuple[dict[str, Any], Optional[str]]:
+        existing = self._find_by_name("pantry.json", mime_type="application/json")
+        if not existing:
+            return {}, None
+        payload = self.load_recipe_json(existing["id"]) or {}
+        return payload, existing["id"]
+
+    def save_pantry(self, payload: dict[str, Any]) -> UploadedFile:
+        return self._upload(
+            name="pantry.json",
             data=json.dumps(payload, ensure_ascii=False, indent=2).encode("utf-8"),
             mime_type="application/json",
             convert_to_google_doc=False,

@@ -4,7 +4,9 @@
 - Главная: плитки категорий + умный поиск.
 - Редактор: загрузка (PDF/DOCX/фото с OCR) → адаптация → сохранение в Google Drive.
 - Библиотека: список рецептов из папки Drive с фильтрами и панелью КБЖУ.
+- Холодильник: продукты с весами + подбор рецептов под имеющиеся продукты.
 - Дневник: «Что вы хотите сегодня?» — лог съеденного с расчётом КБЖУ за день.
+- О разработке: 4-вкладочная витрина продукта.
 """
 from __future__ import annotations
 
@@ -16,10 +18,13 @@ from typing import Any, Optional
 import streamlit as st
 
 from src import categories as cats
+from src.about_ui import render_about
 from src.file_loader import LoadResult, SUPPORTED_EXTS, load_file
 from src.google_drive import DriveClient, DriveError
 from src.meal_log import MEAL_TYPES, MealEntry, MealLog
 from src.nutrition import (Nutrition, calc_recipe, load_products, parse_servings)
+from src.pantry import Pantry, PantryItem, parse_user_input
+from src.recipe_matcher import suggest as suggest_recipes
 from src.recipe_parser import Recipe, parse_recipe
 from src.search import search as search_recipes
 
@@ -55,6 +60,11 @@ def _init_state() -> None:
         "scaler_factor": 1.0,
         "meal_log": None,
         "meal_log_file_id": None,
+        "pantry": None,
+        "pantry_file_id": None,
+        "pantry_input": "",
+        "pantry_suggestions": None,
+        "pantry_selected_recipe": None,
     }
     for k, v in defaults.items():
         if k not in st.session_state:
@@ -142,6 +152,34 @@ def _save_meal_log() -> None:
         st.error(f"Не удалось сохранить дневник: {exc}")
 
 
+def _ensure_pantry() -> tuple[Pantry, DriveClient | None]:
+    client = _get_drive_client()
+    if st.session_state.pantry is None:
+        if client is None:
+            st.session_state.pantry = Pantry()
+        else:
+            try:
+                payload, file_id = client.load_pantry()
+            except DriveError as exc:
+                st.warning(f"Не удалось загрузить холодильник: {exc}")
+                payload, file_id = {}, None
+            st.session_state.pantry = Pantry.from_dict(payload)
+            st.session_state.pantry_file_id = file_id
+    return st.session_state.pantry, client
+
+
+def _save_pantry() -> None:
+    client = _get_drive_client()
+    if client is None:
+        st.warning("Drive не подключён — холодильник сохранён только в этой сессии.")
+        return
+    try:
+        uploaded = client.save_pantry(st.session_state.pantry.to_dict())
+        st.session_state.pantry_file_id = uploaded.file_id
+    except DriveError as exc:
+        st.error(f"Не удалось сохранить холодильник: {exc}")
+
+
 # ---------------------------------------------------------------------------
 # Sidebar
 # ---------------------------------------------------------------------------
@@ -156,7 +194,9 @@ def _sidebar() -> None:
             "home": "🏠 Главная",
             "editor": "✏️ Редактор",
             "library": "📚 Библиотека",
+            "pantry": "🧊 Холодильник",
             "diary": "📅 Дневник",
+            "about": "ℹ️ О разработке",
         }
         for key, label in nav_options.items():
             if st.button(label, use_container_width=True,
@@ -188,6 +228,7 @@ def _sidebar() -> None:
             if st.button("🔄 Обновить кэш", use_container_width=True):
                 _invalidate_library()
                 st.session_state.meal_log = None
+                st.session_state.pantry = None
                 st.rerun()
 
 
@@ -855,6 +896,248 @@ def render_diary() -> None:
 
 
 # ---------------------------------------------------------------------------
+# Холодильник
+# ---------------------------------------------------------------------------
+
+def render_pantry() -> None:
+    st.title("🧊 Холодильник")
+    st.caption(
+        "Что есть дома → что можно приготовить. Без LLM: матчинг по локальной БД "
+        "продуктов. Поддерживает ручной список, OCR фото-списка и фото электронных весов."
+    )
+    pantry, client = _ensure_pantry()
+    if client is None:
+        st.warning("Drive не подключён — холодильник работает только в этой сессии.")
+
+    tabs = st.tabs([
+        "✍ Текстовый ввод",
+        "📷 Фото-список (OCR)",
+        "⚖️ Фото весов (OCR)",
+        "🥦 Что есть",
+        "💡 Что приготовить",
+    ])
+
+    # --- 1. Текстовый ввод ---------------------------------------------------
+    with tabs[0]:
+        st.markdown(
+            "**Каждый продукт с новой строки.** Примеры: "
+            "`перец сладкий 350 г`, `2 огурца`, `молоко 2.5% 1 л`, `курица филе 500 г`."
+        )
+        text = st.text_area(
+            "Список продуктов",
+            value=st.session_state.pantry_input,
+            height=180,
+            label_visibility="collapsed",
+        )
+        st.session_state.pantry_input = text
+        cols = st.columns([1, 1, 2])
+        if cols[0].button("➕ Добавить в холодильник", type="primary"):
+            items = parse_user_input(text)
+            if not items:
+                st.error("Не удалось распарсить ни одной строки.")
+            else:
+                for it in items:
+                    pantry.add(it)
+                _save_pantry()
+                st.success(f"Добавлено: {len(items)}. См. вкладку «Что есть».")
+                st.session_state.pantry_input = ""
+                st.session_state.pantry_suggestions = None
+                st.rerun()
+        if cols[1].button("🔍 Проверить парсинг (без сохранения)"):
+            items = parse_user_input(text)
+            rows = [{"Введено": it.raw, "Распознано": it.product_name or "—",
+                     "Граммы": f"{it.grams:.0f}"} for it in items]
+            st.dataframe(rows, use_container_width=True, hide_index=True)
+
+    # --- 2. Фото-список (OCR) -----------------------------------------------
+    with tabs[1]:
+        st.markdown(
+            "Фото или скан списка продуктов. OCR (rus + eng) превратит в текст — "
+            "проверьте в редактируемом поле и подтвердите."
+        )
+        uploaded = st.file_uploader(
+            "Фото списка",
+            type=[e.lstrip(".") for e in (".png", ".jpg", ".jpeg", ".webp", ".tiff", ".pdf")],
+            key="pantry_ocr_list",
+        )
+        if uploaded is not None and st.button("🔎 Распознать"):
+            try:
+                data = uploaded.read()
+                result = load_file(uploaded.name, data, force_ocr=True)
+                st.session_state.pantry_input = result.text or ""
+                st.success("Распознано. Перейдите на вкладку «Текстовый ввод» — "
+                           "поправьте артефакты и нажмите «Добавить».")
+                st.session_state.page = "pantry"
+                st.rerun()
+            except Exception as exc:  # pragma: no cover
+                st.error(f"OCR не удался: {exc}")
+
+    # --- 3. Фото весов -------------------------------------------------------
+    with tabs[2]:
+        st.markdown(
+            "Фото электронных весов с продуктом. OCR извлечёт число и единицу — "
+            "вы укажете название продукта и нажмёте «Добавить»."
+        )
+        scale_photo = st.file_uploader(
+            "Фото весов",
+            type=["png", "jpg", "jpeg", "webp", "tiff"],
+            key="pantry_scale_photo",
+        )
+        scale_cols = st.columns([2, 1])
+        product_name = scale_cols[0].text_input(
+            "Название продукта", placeholder="например: болгарский перец",
+        )
+        if scale_photo is not None and scale_cols[1].button("📏 Прочитать вес"):
+            try:
+                data = scale_photo.read()
+                result = load_file(scale_photo.name, data, force_ocr=True)
+                st.text_area("Распознано с фото", value=result.text, height=80,
+                             key="scale_ocr_preview")
+                st.info("Скопируйте вес в поле ниже и добавьте.")
+            except Exception as exc:  # pragma: no cover
+                st.error(f"OCR не удался: {exc}")
+        weight_grams = st.number_input(
+            "Вес (граммы)", min_value=0.0, max_value=20000.0, value=0.0, step=10.0,
+        )
+        if st.button("➕ Добавить продукт с весов"):
+            if not product_name.strip() or weight_grams <= 0:
+                st.error("Введите название и вес > 0.")
+            else:
+                from src.nutrition import find_product
+                match = find_product(product_name)
+                canonical = match[0].name if match else ""
+                pantry.add(PantryItem(
+                    id="", raw=f"{product_name} {weight_grams:.0f} г",
+                    name=product_name, product_name=canonical,
+                    grams=float(weight_grams),
+                ))
+                _save_pantry()
+                st.success(f"Добавлено: {product_name} — {weight_grams:.0f} г. "
+                           f"Сопоставлено с «{canonical or '— не найдено в БД —'}».")
+                st.rerun()
+
+    # --- 4. Что есть ---------------------------------------------------------
+    with tabs[3]:
+        if not pantry.items:
+            st.info("Холодильник пуст. Добавьте продукты на других вкладках.")
+        else:
+            sum_g = sum(it.grams for it in pantry.items)
+            unmatched_n = sum(1 for it in pantry.items if not it.product_name)
+            mcols = st.columns(3)
+            mcols[0].metric("Позиций", len(pantry.items))
+            mcols[1].metric("Всего, г", f"{sum_g:.0f}")
+            mcols[2].metric("Не в БД", unmatched_n,
+                            help="Эти продукты не участвуют в матчинге рецептов.")
+            for it in pantry.items:
+                with st.container(border=True):
+                    cols = st.columns([4, 2, 2, 1])
+                    cols[0].markdown(f"**{it.name or it.raw}**")
+                    cols[0].caption(it.raw)
+                    matched_label = it.product_name or "— не найден в БД —"
+                    cols[1].caption(f"🔗 {matched_label}")
+                    new_g = cols[2].number_input(
+                        "г", min_value=0.0, max_value=50000.0,
+                        value=float(it.grams), step=10.0,
+                        key=f"pantry_g_{it.id}", label_visibility="collapsed",
+                    )
+                    if new_g != it.grams:
+                        it.grams = new_g
+                        pantry.update(it)
+                        _save_pantry()
+                    if cols[3].button("🗑", key=f"pantry_del_{it.id}"):
+                        pantry.remove(it.id)
+                        _save_pantry()
+                        st.rerun()
+            if st.button("🧹 Очистить холодильник"):
+                pantry.clear()
+                _save_pantry()
+                st.rerun()
+
+    # --- 5. Что приготовить --------------------------------------------------
+    with tabs[4]:
+        st.markdown("**Сгенерировать рецепты** из того, что лежит в холодильнике.")
+        cols = st.columns([1, 1, 1])
+        include_starter = cols[0].checkbox(
+            "+ стартовый набор рецептов", value=True,
+            help="20 базовых блюд в `data/starter_recipes.json`",
+        )
+        min_cov_pct = cols[1].slider("Мин. покрытие, %", 0, 100, 20, step=5)
+        top_n = cols[2].slider("Сколько показать", 3, 30, 10)
+
+        if st.button("✨ Сгенерировать", type="primary", disabled=not pantry.items):
+            client_ = _get_drive_client()
+            lib = _cached_library(client_.folder_id if client_ else "")
+            user_recipes = _recipes_from_library(lib)
+            grams = pantry.grams_by_product()
+            matches = suggest_recipes(
+                grams,
+                user_recipes=user_recipes,
+                include_starter=include_starter,
+                top_n=top_n,
+                min_coverage=min_cov_pct / 100.0,
+            )
+            st.session_state.pantry_suggestions = matches
+
+        suggestions = st.session_state.pantry_suggestions
+        if not pantry.items:
+            st.info("Сначала добавьте продукты на других вкладках.")
+        elif suggestions is None:
+            st.info("Нажмите «Сгенерировать», чтобы получить подборку.")
+        elif not suggestions:
+            st.warning("Под текущие фильтры ничего не нашлось. Снизьте минимальное "
+                       "покрытие или добавьте больше продуктов.")
+        else:
+            for m in suggestions:
+                _render_match_card(m)
+
+
+def _render_match_card(m) -> None:
+    r = m.recipe
+    title = r.get("title") or "Без названия"
+    source = "🌱 стартовый" if r.get("_source") == "starter" else "📚 ваш"
+    with st.container(border=True):
+        top = st.columns([5, 2, 2])
+        top[0].markdown(f"**{title}**")
+        top[0].caption(f"{cats.label_of(r.get('category', ''))} · {source}")
+        top[1].metric("Покрытие", f"{m.coverage:.0%}")
+        top[2].metric("Готово", f"{m.matched_count}/{m.total_with_weights}")
+
+        with st.expander("Подробно: что есть и что докупить"):
+            if m.have:
+                st.markdown("**✅ Уже есть в нужном объёме / частично**")
+                st.dataframe(
+                    [{"Продукт": s.product_name,
+                      "Нужно, г": f"{s.needed_g:.0f}",
+                      "Есть, г": f"{s.have_g:.0f}",
+                      "Не хватает, г": f"{s.short_g:.0f}" if s.short_g else "—"}
+                     for s in m.have],
+                    use_container_width=True, hide_index=True,
+                )
+            if m.missing:
+                st.markdown("**🛒 Докупить**")
+                st.dataframe(
+                    [{"Продукт": s.product_name,
+                      "Объём, г": f"{s.short_g:.0f}"}
+                     for s in m.missing],
+                    use_container_width=True, hide_index=True,
+                )
+            if m.unmatched:
+                st.caption(
+                    "⚠️ Не сопоставлены с БД (не учитывались в покрытии): "
+                    + ", ".join(s.line for s in m.unmatched)
+                )
+
+        if r.get("ingredients") and r.get("steps"):
+            with st.expander("Полный рецепт"):
+                st.markdown("**Ингредиенты**")
+                for i in r["ingredients"]:
+                    st.markdown(f"- {i}")
+                st.markdown("**Приготовление**")
+                for i, s in enumerate(r["steps"], 1):
+                    st.markdown(f"{i}. {s}")
+
+
+# ---------------------------------------------------------------------------
 # Точка входа
 # ---------------------------------------------------------------------------
 
@@ -867,8 +1150,12 @@ def main() -> None:
         render_editor()
     elif page == "library":
         render_library()
+    elif page == "pantry":
+        render_pantry()
     elif page == "diary":
         render_diary()
+    elif page == "about":
+        render_about()
     else:
         render_home()
 
