@@ -1,0 +1,30 @@
+# Backup hook log
+.claude/cloud-backup.log
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+*.egg-info/
+.venv/
+venv/
+env/
+.pytest_cache/
+.mypy_cache/
+
+# Streamlit secrets (use Streamlit Cloud UI for real secrets)
+.streamlit/secrets.toml
+
+# Local config / credentials
+credentials.json
+token.json
+service_account.json
+*.pem
+
+# OS / IDE
+.DS_Store
+.idea/
+.vscode/
+*.swp

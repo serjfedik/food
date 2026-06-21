@@ -1,0 +1,55 @@
+name: cloud-backup
+
+on:
+  schedule:
+    - cron: "0 13 * * *"   # ежедневно в 13:00 UTC; поменяй частоту при желании
+  workflow_dispatch: {}     # ручной запуск из вкладки Actions
+
+permissions:
+  contents: write           # нужно, чтобы пушить snapshot-теги
+
+concurrency:
+  group: cloud-backup
+  cancel-in-progress: false
+
+jobs:
+  snapshot:
+    runs-on: ubuntu-latest
+    env:
+      RETENTION_DAYS: "30"
+      MIRROR_REMOTE: ${{ secrets.MIRROR_REMOTE }}   # опционально: офсайт-зеркало
+    steps:
+      - name: Checkout (вся история)
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Снапшот всех веток в теги
+        run: |
+          set -uo pipefail
+          git config user.name  "cloud-backup[bot]"
+          git config user.email "cloud-backup@users.noreply.github.com"
+          git fetch --prune origin '+refs/heads/*:refs/remotes/origin/*'
+
+          STAMP="$(date +%Y%m%d-%H%M)"
+          n=0
+          for ref in $(git for-each-ref --format='%(refname:short)' refs/remotes/origin); do
+            [ "$ref" = "origin/HEAD" ] && continue
+            git tag -f "snapshot/$STAMP/${ref#origin/}" "$ref" && n=$((n+1))
+          done
+          git push --tags origin
+          echo "Снапшот: snapshot/$STAMP/* (веток: $n)"
+
+          # ретеншн: удаляем снапшоты старше RETENTION_DAYS
+          cutoff="$(date -d "-${RETENTION_DAYS} days" +%Y%m%d)"
+          for t in $(git ls-remote --tags origin 'refs/tags/snapshot/*' \
+                     | sed -n 's#.*refs/tags/\(snapshot/[0-9]\{8\}-[0-9]\{4\}/.*\)#\1#p'); do
+            d="$(printf '%s' "$t" | sed -n 's#snapshot/\([0-9]\{8\}\)-.*#\1#p')"
+            if [ -n "$d" ] && [ "$d" -lt "$cutoff" ]; then
+              git push origin ":refs/tags/$t" || true
+            fi
+          done
+
+      - name: Офсайт-зеркало (если задан секрет MIRROR_REMOTE)
+        if: ${{ env.MIRROR_REMOTE != '' }}
+        run: git push --mirror "$MIRROR_REMOTE"
