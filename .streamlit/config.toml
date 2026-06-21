@@ -3,8 +3,8 @@ maxUploadSize = 50
 
 [theme]
 base = "light"
-primaryColor = "#8E5A3A"
-backgroundColor = "#F7F1E5"
-secondaryBackgroundColor = "#EDE5D2"
-textColor = "#1F1A14"
-font = "serif"
+primaryColor = "#0E0E0E"
+backgroundColor = "#EFEEEA"
+secondaryBackgroundColor = "#E5E8EA"
+textColor = "#0E0E0E"
+font = "sans serif"

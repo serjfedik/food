@@ -13,13 +13,12 @@ from .theme import hair, page_header, section_h
 
 def _tile_goal(emoji: str, title: str, body: str) -> str:
     return (
-        '<div class="rv-tile" style="min-height:170px;'
-        'border-left:2px solid var(--rv-accent);">'
+        '<div class="rv-tile" style="min-height:170px;">'
         f'<div>'
         f'  <div class="rv-tile-eyebrow">{emoji}</div>'
-        f'  <div style="font-family:var(--rv-serif);font-size:1.15rem;'
-        f'font-weight:500;color:var(--rv-ink);margin:.4rem 0 .5rem 0;'
-        f'line-height:1.2;">{title}</div>'
+        f'  <div style="font-size:1rem;font-weight:600;color:var(--rv-ink);'
+        f'margin:.4rem 0 .5rem 0;line-height:1.25;text-transform:lowercase;">'
+        f'{title.lower()}</div>'
         f'</div>'
         f'<div style="color:var(--rv-ink-dim);font-size:.85rem;line-height:1.55;">{body}</div>'
         '</div>'
@@ -30,8 +29,9 @@ def _tile_adv(title: str, body: str) -> str:
     return (
         '<div class="rv-tile" style="min-height:140px;">'
         f'<div>'
-        f'  <div style="font-family:var(--rv-serif);font-size:1.1rem;font-weight:500;'
-        f'color:var(--rv-ink);margin-bottom:.4rem;line-height:1.2;">{title}</div>'
+        f'  <div style="font-size:.98rem;font-weight:600;color:var(--rv-ink);'
+        f'margin-bottom:.4rem;line-height:1.25;text-transform:lowercase;">'
+        f'{title.lower()}</div>'
         f'  <div style="color:var(--rv-ink-dim);font-size:.85rem;line-height:1.55;">{body}</div>'
         f'</div></div>'
     )
@@ -43,8 +43,9 @@ def _tile_roadmap(title: str, body: str) -> str:
         'border-style:dashed;background:transparent;">'
         f'<div>'
         f'  <div class="rv-tile-eyebrow" style="color:var(--rv-ochre);">в работе</div>'
-        f'  <div style="font-family:var(--rv-serif);font-size:1.1rem;font-weight:500;'
-        f'color:var(--rv-ink);margin:.3rem 0 .5rem 0;line-height:1.2;">{title}</div>'
+        f'  <div style="font-size:.98rem;font-weight:600;color:var(--rv-ink);'
+        f'margin:.3rem 0 .5rem 0;line-height:1.25;text-transform:lowercase;">'
+        f'{title.lower()}</div>'
         f'  <div style="color:var(--rv-ink-dim);font-size:.83rem;line-height:1.55;">{body}</div>'
         f'</div></div>'
     )
@@ -54,8 +55,9 @@ def _tile_tech(title: str, body: str) -> str:
     return (
         '<div class="rv-tile" style="min-height:130px;">'
         f'<div>'
-        f'  <div style="font-family:var(--rv-serif);font-size:1.1rem;font-weight:500;'
-        f'color:var(--rv-ink);margin-bottom:.4rem;line-height:1.2;">{title}</div>'
+        f'  <div style="font-size:.98rem;font-weight:600;color:var(--rv-ink);'
+        f'margin-bottom:.4rem;line-height:1.25;text-transform:lowercase;">'
+        f'{title.lower()}</div>'
         f'  <div style="color:var(--rv-ink-dim);font-size:.85rem;line-height:1.55;">{body}</div>'
         f'</div></div>'
     )
@@ -64,10 +66,9 @@ def _tile_tech(title: str, body: str) -> str:
 def _stat_card(label: str, value: str, sub: str) -> str:
     return (
         '<div class="rv-tile" style="min-height:130px;">'
-        f'<div class="rv-tile-eyebrow">{label}</div>'
-        f'<div style="font-family:var(--rv-serif);font-size:1.85rem;font-weight:500;'
-        f'color:var(--rv-ink);line-height:1.1;margin-top:.2rem;'
-        f'letter-spacing:-.01em;">{value}</div>'
+        f'<div class="rv-tile-eyebrow">{label.lower()}</div>'
+        f'<div style="font-size:1.75rem;font-weight:600;color:var(--rv-ink);'
+        f'line-height:1.1;margin-top:.2rem;letter-spacing:-.015em;">{value}</div>'
         f'<div style="color:var(--rv-ink-mute);font-size:.78rem;'
         f'white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">{sub}</div>'
         '</div>'
@@ -88,10 +89,10 @@ def _grid(items: list[str], cols: int = 3) -> None:
 
 def _render_positioning() -> None:
     st.markdown(
-        '<div class="rv-card" style="border-left:2px solid var(--rv-accent);">'
-        '<div class="rv-h-eyebrow" style="color:var(--rv-accent);">Продукт</div>'
-        '<div style="font-family:var(--rv-serif);font-style:italic;font-size:1.2rem;'
-        'line-height:1.6;color:var(--rv-ink-dim);max-width:62ch;">'
+        '<div class="rv-card">'
+        '<div class="rv-h-eyebrow">о продукте</div>'
+        '<div style="font-size:1.02rem;line-height:1.65;color:var(--rv-ink-dim);'
+        'max-width:62ch;">'
         f'{data.POSITIONING}</div></div>',
         unsafe_allow_html=True,
     )
@@ -180,13 +181,12 @@ def _render_tech_stack() -> None:
 
 def _render_author() -> None:
     st.markdown(
-        '<div style="padding:34px 22px;border-radius:var(--rv-radius);margin-top:18px;'
-        'background:linear-gradient(180deg, rgba(176,97,61,0.04), rgba(176,97,61,0));'
+        '<div style="padding:42px 22px;border-radius:var(--rv-radius);'
+        'margin-top:18px;background:var(--rv-bg-card);'
         'border:1px solid var(--rv-border);text-align:center;">'
-        '<div class="rv-h-eyebrow">Автор продукта</div>'
-        f'<div style="font-family:var(--rv-serif);font-style:italic;'
-        f'color:var(--rv-accent);font-size:2.2rem;font-weight:500;'
-        f'margin-top:.4rem;letter-spacing:.01em;">{data.AUTHOR}</div>'
+        '<div class="rv-h-eyebrow">автор продукта</div>'
+        f'<div style="color:var(--rv-ink);font-size:1.9rem;font-weight:600;'
+        f'margin-top:.4rem;letter-spacing:-.01em;">{data.AUTHOR}</div>'
         '</div>',
         unsafe_allow_html=True,
     )
@@ -202,23 +202,23 @@ def _guide_block(section: data.GuideSection) -> None:
     if section.steps:
         items = "".join(f"<li style='margin-bottom:4px;'>{s}</li>" for s in section.steps)
         steps_html = (
-            '<div class="rv-h-eyebrow" style="margin-top:14px;">Как пользоваться</div>'
+            '<div class="rv-h-eyebrow" style="margin-top:14px;">как пользоваться</div>'
             f'<ol style="color:var(--rv-ink-dim);font-size:.9rem;line-height:1.6;'
             f'margin:.4rem 0 .9rem 0;padding-left:22px;">{items}</ol>'
         )
     st.markdown(
         '<div class="rv-card" style="margin-bottom:14px;">'
-        f'<div class="rv-h-eyebrow">{section.icon} {section.title}</div>'
-        f'<div style="font-family:var(--rv-serif);font-size:1.5rem;font-weight:500;'
-        f'color:var(--rv-ink);margin:.2rem 0 .8rem 0;line-height:1.2;">{section.title}</div>'
+        f'<div class="rv-h-eyebrow">{section.icon} {section.title.lower()}</div>'
+        f'<div style="font-size:1.35rem;font-weight:600;color:var(--rv-ink);'
+        f'margin:.2rem 0 .8rem 0;line-height:1.2;letter-spacing:-.01em;'
+        f'text-transform:lowercase;">{section.title.lower()}</div>'
         f'<div style="color:var(--rv-ink-dim);font-size:.95rem;line-height:1.65;'
-        f'margin-bottom:1rem;font-family:var(--rv-serif);font-style:italic;">'
-        f'{section.purpose}</div>'
-        f'<div class="rv-h-eyebrow">Что внутри</div>'
+        f'margin-bottom:1rem;">{section.purpose}</div>'
+        f'<div class="rv-h-eyebrow">что внутри</div>'
         f'<ul style="color:var(--rv-ink-dim);font-size:.9rem;line-height:1.6;'
         f'margin:.4rem 0 .9rem 0;padding-left:22px;">{feats}</ul>'
         f'{steps_html}'
-        f'<div class="rv-h-eyebrow">Как работает</div>'
+        f'<div class="rv-h-eyebrow">как работает</div>'
         f'<div style="color:var(--rv-ink-dim);font-size:.9rem;line-height:1.65;'
         f'margin-top:.3rem;">{section.how}</div>'
         '</div>',
@@ -239,32 +239,32 @@ def _render_guide() -> None:
 def render_about() -> None:
     if st.session_state.get("_about_guide"):
         page_header(
-            eyebrow="О разработке · гайд",
-            title='Подробный <em>гайд</em>',
+            eyebrow="о разработке · гайд",
+            title="подробный гайд",
         )
-        if st.button("← Вернуться к разделу", key="guide_back"):
+        if st.button("← вернуться к разделу", key="guide_back"):
             st.session_state.pop("_about_guide", None)
             st.rerun()
         _render_guide()
         return
 
     page_header(
-        eyebrow="О разработке",
-        title='Витрина <em>продукта</em>',
+        eyebrow="о разработке",
+        title="витрина продукта",
         lead="Что это, чем мы сильнее, куда растём и сколько в это вложено труда — "
-             "сухая «паспортная» страница без маркетинга.",
+             "сухая паспортная страница без маркетинга.",
     )
 
-    if st.button("Открыть подробный гайд по приложению",
+    if st.button("открыть подробный гайд по приложению",
                  type="primary", key="guide_open"):
         st.session_state["_about_guide"] = True
         st.rerun()
 
     tab_about, tab_compare, tab_stats, tab_tech = st.tabs([
-        "О продукте",
-        "Сравнение возможностей",
-        "Статистика",
-        "Технологический стек",
+        "о продукте",
+        "сравнение возможностей",
+        "статистика",
+        "технологический стек",
     ])
 
     with tab_about:

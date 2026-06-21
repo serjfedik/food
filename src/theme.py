@@ -1,22 +1,16 @@
-"""Глобальная тема Recipe Vault — премиальный артизанальный минимализм.
+"""Глобальная тема Recipe Vault — на основе сайта masamadre.ru.
 
-Палитра и типографика вдохновлены проектом Masa Madre: кремовый фон,
-тёмная охра вместо чёрного, тонкий terracotta-акцент, hairline-разделители,
-крупная serif-типографика для заголовков, sans-serif для тела.
+Характер: тихий прохладный минимализм. Off-white фон, прохладно-серо-голубые
+фотозоны, чёрный текст, всё в нижнем регистре, ТОЛЬКО sans-serif (Inter),
+тонкие прямоугольные рамки, отсутствие декора. Акцентом служит не цвет,
+а пустое пространство и вес шрифта.
 
 Использование:
-    from src.theme import inject_theme
-    inject_theme()  # вызвать один раз в начале app.py
-
-После этого можно использовать классы:
-    .rv-eyebrow    — мелкий uppercase-лейбл над заголовком
-    .rv-display    — крупный serif-заголовок страницы
-    .rv-h          — подсекционный serif-заголовок (h2-уровень)
-    .rv-caption    — приглушённая подпись
-    .rv-card       — белая карточка с hairline-бордером
-    .rv-tile       — плитка категории/preset
-    .rv-hair       — div-разделитель в одну линию
-    .rv-pill       — мелкий тег-чип
+    from src.theme import inject_theme, page_header, section_h, hair
+    inject_theme()                              # вызвать один раз
+    page_header("eyebrow", "title", lead="…")   # шапка страницы
+    section_h("01", "название блока")           # подсекция
+    hair()                                       # тонкий разделитель
 """
 from __future__ import annotations
 
@@ -25,102 +19,99 @@ import streamlit as st
 
 PALETTE = {
     # фоны
-    "bg":          "#F7F1E5",   # тёплый кремовый, ближе к мякиша
-    "bg_soft":     "#EDE5D2",   # пшеничный sidebar
-    "bg_card":     "#FFFCF7",   # «бумага» — тёплый белый
+    "bg":          "#EFEEEA",   # off-white, чуть тёплый neutral
+    "bg_soft":     "#E5E8EA",   # прохладный серо-голубой (для фотозон / sidebar)
+    "bg_card":     "#FFFFFF",   # чисто белый
     # текст
-    "ink":         "#1F1A14",   # тёплый «почти чёрный»
-    "ink_dim":     "#6B5E4F",   # вторичный текст
-    "ink_mute":    "#9A8E7D",   # caption-уровень
+    "ink":         "#0E0E0E",   # почти-чёрный
+    "ink_dim":     "#3A3A3A",   # вторичный текст
+    "ink_mute":    "#8A8A8A",   # caption
     # линии
-    "hair":        "#E3D9C2",   # самый тонкий разделитель
-    "border":      "#D8CDB3",   # бордер карточек
-    # акценты
-    "accent":      "#8E5A3A",   # «корочка хлеба» — древесно-коричневый
-    "accent_soft": "#E3CBB5",   # hover/выделение
-    "wheat":       "#C9A86A",   # пшеница — для highlight
-    "olive":       "#6B7A4A",   # оливка — success / постное
-    "ochre":       "#B57F2E",   # warn/в работе
+    "hair":        "#E0E0DC",   # самый тонкий
+    "border":      "#CFCFCB",   # видимый бордер
+    # акценты (используются ОЧЕНЬ редко — только для функциональных маркеров)
+    "accent":      "#0E0E0E",   # сам чёрный и есть акцент
+    "photo_bg":    "#E5E8EA",   # «фон под буханку»
+    "olive":       "#5A6B45",   # success-маркер (постное, готово)
+    "ochre":       "#9C7430",   # warn-маркер (в работе)
 }
 
 
 _CSS = """
 <style>
-@import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;0,700;1,400;1,500&family=EB+Garamond:ital,wght@0,400;0,500;0,600;1,400;1,500&family=Inter:wght@300;400;500;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
 
 :root {
-  --rv-bg:           #F7F1E5;
-  --rv-bg-soft:      #EDE5D2;
-  --rv-bg-card:      #FFFCF7;
-  --rv-ink:          #1F1A14;
-  --rv-ink-dim:      #6B5E4F;
-  --rv-ink-mute:     #9A8E7D;
-  --rv-hair:         #E3D9C2;
-  --rv-border:       #D8CDB3;
-  --rv-accent:       #8E5A3A;
-  --rv-accent-soft:  #E3CBB5;
-  --rv-wheat:        #C9A86A;
-  --rv-olive:        #6B7A4A;
-  --rv-ochre:        #B57F2E;
+  --rv-bg:         #EFEEEA;
+  --rv-bg-soft:    #E5E8EA;
+  --rv-bg-card:    #FFFFFF;
+  --rv-ink:        #0E0E0E;
+  --rv-ink-dim:    #3A3A3A;
+  --rv-ink-mute:   #8A8A8A;
+  --rv-hair:       #E0E0DC;
+  --rv-border:     #CFCFCB;
+  --rv-accent:     #0E0E0E;
+  --rv-photo-bg:   #E5E8EA;
+  --rv-olive:      #5A6B45;
+  --rv-ochre:      #9C7430;
 
-  --rv-radius:       18px;
-  --rv-radius-sm:    10px;
-  --rv-serif:        'Cormorant Garamond', 'EB Garamond', Georgia, 'Times New Roman', serif;
-  --rv-sans:         'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  --rv-radius:     3px;
+  --rv-radius-sm:  2px;
+  --rv-sans:       'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
 }
 
 /* ============================================================
-   Базовая типографика
+   База
    ============================================================ */
 html, body, [class*="css"], .stApp, .main, .block-container {
   background-color: var(--rv-bg) !important;
   color: var(--rv-ink);
   font-family: var(--rv-sans) !important;
   font-size: 15px;
+  -webkit-font-smoothing: antialiased;
 }
 
 .block-container {
-  padding-top: 2.5rem;
+  padding-top: 2.6rem;
   padding-bottom: 4rem;
-  max-width: 1180px;
+  max-width: 1240px;
 }
 
-/* Заголовки страниц Streamlit -> serif */
+/* Все заголовки — sans, normal-weight, lowercase */
 h1, h2, h3, h4, h5,
 .stMarkdown h1, .stMarkdown h2, .stMarkdown h3,
 [data-testid="stHeading"] h1,
 [data-testid="stHeading"] h2,
 [data-testid="stHeading"] h3 {
-  font-family: var(--rv-serif) !important;
-  font-weight: 500 !important;
-  letter-spacing: -0.005em;
+  font-family: var(--rv-sans) !important;
   color: var(--rv-ink);
+  letter-spacing: -0.01em;
   line-height: 1.15;
+  font-weight: 600 !important;
+  text-transform: lowercase;
 }
 
-h1, .stMarkdown h1 { font-size: 3.0rem !important; font-weight: 500 !important; margin-bottom: .35rem !important; letter-spacing: -0.015em; }
-h2, .stMarkdown h2 { font-size: 2.0rem !important; margin-top: 1.2rem !important; font-weight: 500 !important; letter-spacing: -0.01em; }
-h3, .stMarkdown h3 { font-size: 1.45rem !important; font-weight: 500 !important; }
+h1, .stMarkdown h1 { font-size: 2.4rem !important; margin-bottom: .4rem !important; }
+h2, .stMarkdown h2 { font-size: 1.7rem !important; margin-top: 1.4rem !important; }
+h3, .stMarkdown h3 { font-size: 1.15rem !important; }
 
-/* Caption / подписи */
 .stCaption, [data-testid="stCaptionContainer"], small {
   color: var(--rv-ink-mute) !important;
-  font-style: italic;
-  font-family: var(--rv-serif) !important;
-  font-size: 0.95rem !important;
+  font-family: var(--rv-sans) !important;
+  font-size: 0.85rem !important;
+  font-weight: 400;
 }
 
-/* Параграфы и списки */
 .stMarkdown p, .stMarkdown li {
   color: var(--rv-ink-dim);
-  line-height: 1.65;
+  line-height: 1.6;
 }
 
 /* ============================================================
-   Сайдбар
+   Sidebar
    ============================================================ */
 [data-testid="stSidebar"] {
-  background-color: var(--rv-bg-soft) !important;
+  background-color: var(--rv-bg) !important;
   border-right: 1px solid var(--rv-hair);
 }
 [data-testid="stSidebar"] > div:first-child {
@@ -129,46 +120,69 @@ h3, .stMarkdown h3 { font-size: 1.45rem !important; font-weight: 500 !important;
 [data-testid="stSidebar"] hr {
   border: none;
   border-top: 1px solid var(--rv-hair);
-  margin: 0.9rem 0;
+  margin: 1rem 0;
 }
 
 /* ============================================================
-   Кнопки
+   Кнопки — тонкая прямоугольная рамка, никаких pill
    ============================================================ */
 .stButton > button, .stDownloadButton > button {
   background: transparent;
   color: var(--rv-ink);
   border: 1px solid var(--rv-border);
-  border-radius: 999px;
-  padding: 0.55rem 1.2rem;
+  border-radius: var(--rv-radius-sm);
+  padding: 0.55rem 1rem;
   font-family: var(--rv-sans);
-  font-weight: 500;
-  font-size: 0.88rem;
-  letter-spacing: 0.02em;
-  transition: all .15s ease;
+  font-weight: 400;
+  font-size: 0.86rem;
+  text-transform: lowercase;
+  letter-spacing: 0;
+  transition: all .12s ease;
   box-shadow: none !important;
 }
 .stButton > button:hover, .stDownloadButton > button:hover {
-  background: var(--rv-bg-soft);
-  border-color: var(--rv-ink-dim);
+  border-color: var(--rv-ink);
   color: var(--rv-ink);
+  background: transparent;
 }
 .stButton > button[kind="primary"], .stDownloadButton > button[kind="primary"] {
   background: var(--rv-ink);
-  color: var(--rv-bg);
+  color: #FFFFFF;
   border-color: var(--rv-ink);
+  font-weight: 500;
 }
 .stButton > button[kind="primary"]:hover {
-  background: var(--rv-accent);
-  border-color: var(--rv-accent);
-  color: white;
+  background: #FFFFFF;
+  color: var(--rv-ink);
+  border-color: var(--rv-ink);
+}
+
+/* Sidebar nav buttons: «кнопки-меню» как у masamadre */
+[data-testid="stSidebar"] .stButton > button {
+  text-align: left;
+  border: 1px solid transparent;
+  border-radius: var(--rv-radius-sm);
+  padding: 0.45rem 0.7rem;
+  font-size: 0.92rem;
+  color: var(--rv-ink-dim);
+  background: transparent;
+}
+[data-testid="stSidebar"] .stButton > button:hover {
+  color: var(--rv-ink);
+  border-color: transparent;
+}
+[data-testid="stSidebar"] .stButton > button[kind="primary"] {
+  background: transparent;
+  color: var(--rv-ink);
+  border: 1px solid var(--rv-ink);
+  font-weight: 500;
 }
 
 /* ============================================================
-   Вкладки (st.tabs)
+   Tabs — underline, lowercase
    ============================================================ */
 .stTabs [data-baseweb="tab-list"] {
-  gap: 1.5rem;
+  gap: 1.6rem;
   border-bottom: 1px solid var(--rv-hair);
   margin-bottom: 1.5rem;
 }
@@ -177,20 +191,21 @@ h3, .stMarkdown h3 { font-size: 1.45rem !important; font-weight: 500 !important;
   border: none !important;
   padding: 0.6rem 0 !important;
   font-family: var(--rv-sans);
-  font-weight: 500;
-  font-size: 0.88rem;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
+  font-weight: 400;
+  font-size: 0.9rem;
+  text-transform: lowercase;
+  letter-spacing: 0;
   color: var(--rv-ink-mute) !important;
 }
 .stTabs [data-baseweb="tab"][aria-selected="true"] {
   color: var(--rv-ink) !important;
   border-bottom: 1px solid var(--rv-ink) !important;
+  font-weight: 500;
 }
 .stTabs [data-baseweb="tab-highlight"] { display: none !important; }
 
 /* ============================================================
-   Inputs, selectbox, текстовые поля
+   Inputs
    ============================================================ */
 .stTextInput input, .stTextArea textarea, .stNumberInput input,
 .stSelectbox div[data-baseweb="select"] > div,
@@ -200,40 +215,41 @@ h3, .stMarkdown h3 { font-size: 1.45rem !important; font-weight: 500 !important;
   border-radius: var(--rv-radius-sm) !important;
   color: var(--rv-ink) !important;
   font-family: var(--rv-sans) !important;
+  font-size: 0.92rem;
   box-shadow: none !important;
 }
 .stTextInput input:focus, .stTextArea textarea:focus, .stNumberInput input:focus {
-  border-color: var(--rv-ink-dim) !important;
+  border-color: var(--rv-ink) !important;
 }
 [data-testid="stWidgetLabel"] label, .stCheckbox label {
   color: var(--rv-ink-dim) !important;
   font-family: var(--rv-sans) !important;
-  font-size: 0.83rem !important;
-  font-weight: 500;
-  letter-spacing: 0.02em;
+  font-size: 0.82rem !important;
+  font-weight: 400;
+  text-transform: lowercase;
 }
 
 /* ============================================================
-   Метрики st.metric — лаконичный «магазинный ценник»
+   Метрики — крупные sans-цифры
    ============================================================ */
 [data-testid="stMetric"] {
   background: var(--rv-bg-card);
   border: 1px solid var(--rv-border);
-  border-radius: var(--rv-radius-sm);
+  border-radius: var(--rv-radius);
   padding: 14px 18px;
 }
 [data-testid="stMetricLabel"] {
   color: var(--rv-ink-mute) !important;
-  font-size: 0.72rem !important;
-  font-weight: 600 !important;
-  letter-spacing: 0.14em !important;
-  text-transform: uppercase !important;
+  font-size: 0.78rem !important;
+  font-weight: 400 !important;
+  letter-spacing: 0 !important;
+  text-transform: lowercase !important;
 }
 [data-testid="stMetricValue"] {
   color: var(--rv-ink) !important;
-  font-family: var(--rv-serif) !important;
+  font-family: var(--rv-sans) !important;
   font-weight: 500 !important;
-  font-size: 1.85rem !important;
+  font-size: 1.7rem !important;
   letter-spacing: -0.01em;
 }
 
@@ -257,24 +273,25 @@ h3, .stMarkdown h3 { font-size: 1.45rem !important; font-weight: 500 !important;
 [data-testid="stExpander"] {
   background: transparent !important;
   border: 1px solid var(--rv-hair) !important;
-  border-radius: var(--rv-radius-sm) !important;
+  border-radius: var(--rv-radius) !important;
   box-shadow: none !important;
 }
 [data-testid="stExpander"] summary {
   font-family: var(--rv-sans);
-  font-weight: 500;
+  font-weight: 400;
   color: var(--rv-ink);
   font-size: 0.9rem;
+  text-transform: lowercase;
 }
 
 /* ============================================================
-   Алерты (info / success / warning)
+   Алерты
    ============================================================ */
 [data-testid="stAlert"] {
   background: var(--rv-bg-card) !important;
   border: 1px solid var(--rv-border) !important;
-  border-left-width: 3px !important;
-  border-radius: var(--rv-radius-sm) !important;
+  border-left-width: 2px !important;
+  border-radius: var(--rv-radius) !important;
   color: var(--rv-ink) !important;
   box-shadow: none !important;
 }
@@ -285,7 +302,7 @@ h3, .stMarkdown h3 { font-size: 1.45rem !important; font-weight: 500 !important;
    ============================================================ */
 [data-testid="stDataFrame"] {
   border: 1px solid var(--rv-hair) !important;
-  border-radius: var(--rv-radius-sm) !important;
+  border-radius: var(--rv-radius) !important;
   overflow: hidden;
 }
 
@@ -295,131 +312,148 @@ h3, .stMarkdown h3 { font-size: 1.45rem !important; font-weight: 500 !important;
 .rv-eyebrow {
   display: inline-block;
   font-family: var(--rv-sans);
-  font-size: 0.72rem;
-  font-weight: 600;
-  letter-spacing: 0.22em;
-  text-transform: uppercase;
-  color: var(--rv-accent);
-  margin-bottom: 0.4rem;
+  font-size: 0.82rem;
+  font-weight: 400;
+  letter-spacing: 0;
+  color: var(--rv-ink-mute);
+  margin-bottom: 0.6rem;
+  text-transform: lowercase;
 }
+
+/* Mini-rectangle вокруг лейбла — как у masamadre EN/RU, или активного «хлеб» */
+.rv-tag {
+  display: inline-block;
+  border: 1px solid var(--rv-ink);
+  border-radius: var(--rv-radius-sm);
+  padding: 1px 8px;
+  font-size: 0.82rem;
+  font-weight: 400;
+  color: var(--rv-ink);
+}
+
 .rv-display {
-  font-family: var(--rv-serif);
-  font-weight: 500;
-  font-size: 3.6rem;
-  line-height: 1.02;
+  font-family: var(--rv-sans);
+  font-weight: 600;
+  font-size: 2.6rem;
+  line-height: 1.1;
   letter-spacing: -0.015em;
   color: var(--rv-ink);
   margin: 0 0 0.6rem 0;
+  text-transform: lowercase;
 }
-.rv-display em { font-style: italic; color: var(--rv-accent); font-weight: 500; }
-.rv-ornament {
-  display:flex; align-items:center; gap:14px;
-  color: var(--rv-accent); margin: 22px 0 14px 0;
-  font-family: var(--rv-serif); font-size: 0.95rem;
-}
-.rv-ornament::before,
-.rv-ornament::after {
-  content:""; flex:1; border-top:1px solid var(--rv-hair);
-}
+
 .rv-h {
-  font-family: var(--rv-serif);
-  font-weight: 500;
-  font-size: 1.5rem;
+  font-family: var(--rv-sans);
+  font-weight: 600;
+  font-size: 1.4rem;
   letter-spacing: -0.005em;
   color: var(--rv-ink);
   margin: 1.4rem 0 0.8rem 0;
+  text-transform: lowercase;
 }
 .rv-h-eyebrow {
   font-family: var(--rv-sans);
-  font-size: 0.72rem;
-  font-weight: 600;
-  letter-spacing: 0.22em;
-  text-transform: uppercase;
+  font-size: 0.78rem;
+  font-weight: 400;
+  letter-spacing: 0;
   color: var(--rv-ink-mute);
-  margin-bottom: 0.35rem;
+  margin-bottom: 0.3rem;
+  text-transform: lowercase;
 }
 .rv-lead {
-  font-family: var(--rv-serif);
-  font-style: italic;
-  font-size: 1.15rem;
+  font-family: var(--rv-sans);
+  font-weight: 400;
+  font-size: 1.02rem;
   line-height: 1.55;
   color: var(--rv-ink-dim);
-  max-width: 56ch;
+  max-width: 60ch;
 }
+
 .rv-caption {
   color: var(--rv-ink-mute);
-  font-family: var(--rv-serif);
-  font-style: italic;
-  font-size: 0.95rem;
+  font-family: var(--rv-sans);
+  font-size: 0.85rem;
 }
+
+/* «Карточка хлеба» — белая, минимальный бордер */
 .rv-card {
   background: var(--rv-bg-card);
   border: 1px solid var(--rv-border);
   border-radius: var(--rv-radius);
-  padding: 24px 26px;
+  padding: 22px 24px;
 }
+
+/* Плитка с фото-зоной (там, где у masamadre серо-голубой фон под буханкой) */
 .rv-tile {
   background: var(--rv-bg-card);
   border: 1px solid var(--rv-border);
   border-radius: var(--rv-radius);
-  padding: 22px 22px 20px 22px;
-  transition: border-color .15s ease, transform .15s ease;
+  padding: 20px 20px 18px 20px;
+  transition: border-color .12s ease;
   min-height: 150px;
   display: flex;
   flex-direction: column;
   justify-content: space-between;
 }
 .rv-tile:hover {
-  border-color: var(--rv-ink-dim);
+  border-color: var(--rv-ink);
 }
 .rv-tile-eyebrow {
   font-family: var(--rv-sans);
-  font-size: 0.7rem;
-  letter-spacing: 0.22em;
-  text-transform: uppercase;
+  font-size: 0.78rem;
+  letter-spacing: 0;
   color: var(--rv-ink-mute);
+  text-transform: lowercase;
 }
 .rv-tile-title {
-  font-family: var(--rv-serif);
-  font-size: 1.55rem;
-  font-weight: 500;
+  font-family: var(--rv-sans);
+  font-size: 1.15rem;
+  font-weight: 600;
   color: var(--rv-ink);
-  margin-top: 0.4rem;
-  line-height: 1.15;
+  margin-top: 0.5rem;
+  line-height: 1.2;
+  text-transform: lowercase;
 }
 .rv-tile-meta {
   color: var(--rv-ink-mute);
-  font-size: 0.85rem;
+  font-size: 0.84rem;
   margin-top: 0.4rem;
 }
+
+/* Чип-таги */
 .rv-pill {
   display: inline-block;
-  padding: 2px 10px;
+  padding: 1px 8px;
   border: 1px solid var(--rv-border);
-  border-radius: 999px;
-  font-size: 0.72rem;
-  letter-spacing: 0.08em;
+  border-radius: var(--rv-radius-sm);
+  font-size: 0.74rem;
   color: var(--rv-ink-dim);
-  background: var(--rv-bg-soft);
+  background: transparent;
   margin-right: 4px;
   margin-bottom: 4px;
+  text-transform: lowercase;
 }
-.rv-pill.accent { color: var(--rv-accent); border-color: var(--rv-accent-soft); background: rgba(176,97,61,0.06); }
-.rv-pill.olive  { color: var(--rv-olive);  border-color: var(--rv-olive); background: rgba(107,122,74,0.06); }
-.rv-pill.ochre  { color: var(--rv-ochre);  border-color: var(--rv-ochre); background: rgba(196,145,68,0.06); }
+.rv-pill.accent { color: var(--rv-ink); border-color: var(--rv-ink); }
+.rv-pill.olive  { color: var(--rv-olive);  border-color: var(--rv-olive); }
+.rv-pill.ochre  { color: var(--rv-ochre);  border-color: var(--rv-ochre); }
+
+/* Разделители */
 .rv-hair {
   border-top: 1px solid var(--rv-hair);
-  margin: 24px 0 18px 0;
+  margin: 22px 0 16px 0;
 }
-.rv-rule-vert {
-  border-left: 1px solid var(--rv-hair);
-  padding-left: 16px;
-}
-.rv-section-num {
-  font-family: var(--rv-serif);
-  font-size: 0.9rem;
-  color: var(--rv-accent);
-  letter-spacing: 0.15em;
+
+/* «Фотозона» — для плиток-категорий с прохладно-серо-голубым фоном */
+.rv-photo-zone {
+  background: var(--rv-photo-bg);
+  border-radius: var(--rv-radius);
+  aspect-ratio: 4 / 3;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 2.2rem;
+  color: var(--rv-ink-dim);
+  margin-bottom: 12px;
 }
 </style>
 """
@@ -431,20 +465,25 @@ def inject_theme() -> None:
 
 
 def page_header(eyebrow: str, title: str, lead: str | None = None) -> None:
-    """Премиальный заголовок страницы: eyebrow + serif display + опциональный лид."""
-    parts = [f'<div class="rv-eyebrow">{eyebrow}</div>',
-             f'<div class="rv-display">{title}</div>']
+    """Шапка страницы: eyebrow (lowercase, mute) → крупный sans-display → lead → hair.
+
+    title и eyebrow выводятся в нижнем регистре — как на masamadre.ru.
+    """
+    parts = [
+        f'<div class="rv-eyebrow">{eyebrow.lower()}</div>',
+        f'<div class="rv-display">{title.lower()}</div>',
+    ]
     if lead:
         parts.append(f'<div class="rv-lead">{lead}</div>')
     parts.append('<div class="rv-hair"></div>')
     st.markdown("".join(parts), unsafe_allow_html=True)
 
 
-def section_h(eyebrow: str, title: str) -> None:
-    """Подсекционный заголовок: small uppercase + serif h2."""
+def section_h(number: str, title: str) -> None:
+    """Подсекция: маленький номер/индекс + крупный sans-заголовок."""
     st.markdown(
-        f'<div class="rv-h-eyebrow">{eyebrow}</div>'
-        f'<div class="rv-h">{title}</div>',
+        f'<div class="rv-h-eyebrow">{number} · {title.lower()}</div>'
+        f'<div class="rv-h">{title.lower()}</div>',
         unsafe_allow_html=True,
     )
 
@@ -453,8 +492,8 @@ def hair() -> None:
     st.markdown('<div class="rv-hair"></div>', unsafe_allow_html=True)
 
 
-def ornament(glyph: str = "※") -> None:
-    """Хайрлайн с центральным глифом — тонкий «древесный» разделитель.
-    Используется ОЧЕНЬ редко, только между смысловыми блоками."""
-    st.markdown(f'<div class="rv-ornament">{glyph}</div>',
-                unsafe_allow_html=True)
+def ornament(glyph: str = "") -> None:
+    """Совместимости ради — раньше использовался декоративный разделитель.
+    В новой теме сводится к обычному hair (без декора, как и просили
+    дизайн-референс)."""
+    hair()
