@@ -25,45 +25,47 @@ import streamlit as st
 
 PALETTE = {
     # фоны
-    "bg":          "#FAF6EE",   # основной кремовый
-    "bg_soft":     "#F4EFE3",   # второстепенный (sidebar, чипы)
-    "bg_card":     "#FFFFFF",   # белые карточки
+    "bg":          "#F7F1E5",   # тёплый кремовый, ближе к мякиша
+    "bg_soft":     "#EDE5D2",   # пшеничный sidebar
+    "bg_card":     "#FFFCF7",   # «бумага» — тёплый белый
     # текст
     "ink":         "#1F1A14",   # тёплый «почти чёрный»
-    "ink_dim":     "#6B6157",   # вторичный текст
-    "ink_mute":    "#9A9085",   # caption-уровень
+    "ink_dim":     "#6B5E4F",   # вторичный текст
+    "ink_mute":    "#9A8E7D",   # caption-уровень
     # линии
-    "hair":        "#EDE5D3",   # самый тонкий разделитель
-    "border":      "#E5DDC9",   # бордер карточек
+    "hair":        "#E3D9C2",   # самый тонкий разделитель
+    "border":      "#D8CDB3",   # бордер карточек
     # акценты
-    "accent":      "#B0613D",   # terracotta
-    "accent_soft": "#EBD0BE",   # фон hover/выделение
-    "olive":       "#6B7A4A",   # вторичный (для success-меток)
-    "ochre":       "#C49144",   # warn/в работе
+    "accent":      "#8E5A3A",   # «корочка хлеба» — древесно-коричневый
+    "accent_soft": "#E3CBB5",   # hover/выделение
+    "wheat":       "#C9A86A",   # пшеница — для highlight
+    "olive":       "#6B7A4A",   # оливка — success / постное
+    "ochre":       "#B57F2E",   # warn/в работе
 }
 
 
 _CSS = """
 <style>
-@import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;0,700;1,400;1,500&family=Inter:wght@300;400;500;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;0,700;1,400;1,500&family=EB+Garamond:ital,wght@0,400;0,500;0,600;1,400;1,500&family=Inter:wght@300;400;500;600;700&display=swap');
 
 :root {
-  --rv-bg:           #FAF6EE;
-  --rv-bg-soft:      #F4EFE3;
-  --rv-bg-card:      #FFFFFF;
+  --rv-bg:           #F7F1E5;
+  --rv-bg-soft:      #EDE5D2;
+  --rv-bg-card:      #FFFCF7;
   --rv-ink:          #1F1A14;
-  --rv-ink-dim:      #6B6157;
-  --rv-ink-mute:     #9A9085;
-  --rv-hair:         #EDE5D3;
-  --rv-border:       #E5DDC9;
-  --rv-accent:       #B0613D;
-  --rv-accent-soft:  #EBD0BE;
+  --rv-ink-dim:      #6B5E4F;
+  --rv-ink-mute:     #9A8E7D;
+  --rv-hair:         #E3D9C2;
+  --rv-border:       #D8CDB3;
+  --rv-accent:       #8E5A3A;
+  --rv-accent-soft:  #E3CBB5;
+  --rv-wheat:        #C9A86A;
   --rv-olive:        #6B7A4A;
-  --rv-ochre:        #C49144;
+  --rv-ochre:        #B57F2E;
 
-  --rv-radius:       16px;
+  --rv-radius:       18px;
   --rv-radius-sm:    10px;
-  --rv-serif:        'Cormorant Garamond', Georgia, 'Times New Roman', serif;
+  --rv-serif:        'Cormorant Garamond', 'EB Garamond', Georgia, 'Times New Roman', serif;
   --rv-sans:         'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
 }
 
@@ -96,9 +98,9 @@ h1, h2, h3, h4, h5,
   line-height: 1.15;
 }
 
-h1, .stMarkdown h1 { font-size: 2.6rem !important; font-weight: 500 !important; margin-bottom: .35rem !important; }
-h2, .stMarkdown h2 { font-size: 1.9rem !important; margin-top: 1.2rem !important; }
-h3, .stMarkdown h3 { font-size: 1.4rem !important; }
+h1, .stMarkdown h1 { font-size: 3.0rem !important; font-weight: 500 !important; margin-bottom: .35rem !important; letter-spacing: -0.015em; }
+h2, .stMarkdown h2 { font-size: 2.0rem !important; margin-top: 1.2rem !important; font-weight: 500 !important; letter-spacing: -0.01em; }
+h3, .stMarkdown h3 { font-size: 1.45rem !important; font-weight: 500 !important; }
 
 /* Caption / подписи */
 .stCaption, [data-testid="stCaptionContainer"], small {
@@ -303,13 +305,22 @@ h3, .stMarkdown h3 { font-size: 1.4rem !important; }
 .rv-display {
   font-family: var(--rv-serif);
   font-weight: 500;
-  font-size: 3.2rem;
-  line-height: 1.05;
-  letter-spacing: -0.01em;
+  font-size: 3.6rem;
+  line-height: 1.02;
+  letter-spacing: -0.015em;
   color: var(--rv-ink);
-  margin: 0 0 0.4rem 0;
+  margin: 0 0 0.6rem 0;
 }
 .rv-display em { font-style: italic; color: var(--rv-accent); font-weight: 500; }
+.rv-ornament {
+  display:flex; align-items:center; gap:14px;
+  color: var(--rv-accent); margin: 22px 0 14px 0;
+  font-family: var(--rv-serif); font-size: 0.95rem;
+}
+.rv-ornament::before,
+.rv-ornament::after {
+  content:""; flex:1; border-top:1px solid var(--rv-hair);
+}
 .rv-h {
   font-family: var(--rv-serif);
   font-weight: 500;
@@ -440,3 +451,10 @@ def section_h(eyebrow: str, title: str) -> None:
 
 def hair() -> None:
     st.markdown('<div class="rv-hair"></div>', unsafe_allow_html=True)
+
+
+def ornament(glyph: str = "※") -> None:
+    """Хайрлайн с центральным глифом — тонкий «древесный» разделитель.
+    Используется ОЧЕНЬ редко, только между смысловыми блоками."""
+    st.markdown(f'<div class="rv-ornament">{glyph}</div>',
+                unsafe_allow_html=True)
